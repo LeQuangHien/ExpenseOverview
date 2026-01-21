@@ -1,4 +1,9 @@
 package com.hien.le.expenseoverview.presentation.common
 
-class CoroutineDispatchers {
-}
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+
+data class CoroutineDispatchers(
+    val main: CoroutineDispatcher = Dispatchers.Main,
+    val io: CoroutineDispatcher = Dispatchers.Default
+)

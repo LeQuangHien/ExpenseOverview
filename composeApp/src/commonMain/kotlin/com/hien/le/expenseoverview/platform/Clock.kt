@@ -1,4 +1,5 @@
 package com.hien.le.expenseoverview.platform
 
-class Clock {
+interface Clock {
+    fun nowEpochMillis(): Long
 }
