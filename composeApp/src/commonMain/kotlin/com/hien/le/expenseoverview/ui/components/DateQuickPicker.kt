@@ -1,6 +1,7 @@
 package com.hien.le.expenseoverview.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -202,10 +203,18 @@ private fun RowScope.DayCell(
         isToday -> MaterialTheme.colorScheme.secondaryContainer
         else -> MaterialTheme.colorScheme.surface
     }
+
     val fg = when {
         isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
         isToday -> MaterialTheme.colorScheme.onSecondaryContainer
         else -> MaterialTheme.colorScheme.onSurface
+    }
+
+    // ✅ border để phân biệt rõ "today" và "selected"
+    val borderColor = when {
+        isSelected && isToday -> MaterialTheme.colorScheme.primary // highlight mạnh nhất
+        isToday -> MaterialTheme.colorScheme.outline               // today nhưng chưa chọn
+        else -> null
     }
 
     Box(
@@ -213,6 +222,13 @@ private fun RowScope.DayCell(
             .weight(1f)
             .aspectRatio(1f)
             .background(bg, shape)
+            .then(
+                if (borderColor != null) Modifier.border(
+                    width = 2.dp,
+                    color = borderColor,
+                    shape = shape
+                ) else Modifier
+            )
             .clickable(enabled = dayNumber != null) { onClick() },
         contentAlignment = Alignment.Center
     ) {
