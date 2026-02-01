@@ -7,32 +7,6 @@ data class ExpenseItemUi(
     val amountCents: Long
 )
 
-data class EntryState(
-    val dateIso: String,
-    val bargeldText: String = "",
-    val karteText: String = "",
-    val noteText: String = "",
-
-    // Expense add form
-    val vendorPreset: VendorPreset = VendorPreset.ALDI_SUED,
-    val vendorCustomText: String = "",
-    val expenseAmountText: String = "",
-
-    // Items
-    val expenseItems: List<ExpenseItemUi> = emptyList(),
-
-    // Totals
-    val totalRevenueCents: Long = 0,
-    val totalExpenseCents: Long = 0,
-    val netCents: Long = 0,
-
-    val isLoading: Boolean = false,
-    val canSave: Boolean = true,
-    val canAddExpense: Boolean = false,
-    val errorMessage: String? = null,
-    val lastSavedAt: Long? = null
-)
-
 enum class VendorPreset(val label: String) {
     ALDI_SUED("Aldi Süd"),
     REWE("Rewe"),
@@ -41,6 +15,59 @@ enum class VendorPreset(val label: String) {
     EDEKA("Edeka"),
     DM("dm"),
     OTHER("Khác")
+}
+
+data class EntryState(
+    val dateIso: String,
+
+    // revenue
+    val bargeldText: String = "",
+    val karteText: String = "",
+
+    // note
+    val noteText: String = "",
+
+    // expense add form
+    val vendorPreset: VendorPreset = VendorPreset.ALDI_SUED,
+    val vendorCustomText: String = "",
+    val expenseAmountText: String = "",
+
+    // expense list
+    val expenseItems: List<ExpenseItemUi> = emptyList(),
+
+    // totals
+    val totalRevenueCents: Long = 0,
+    val totalExpenseCents: Long = 0,
+    val netCents: Long = 0,
+
+    // ui flags
+    val isLoading: Boolean = false,
+    val canSave: Boolean = false,
+    val canAddExpense: Boolean = false,
+
+    // errors
+    val errorMessage: String? = null
+) {
+    companion object {
+        fun initial(dateIso: String): EntryState =
+            EntryState(
+                dateIso = dateIso,
+                bargeldText = "",
+                karteText = "",
+                noteText = "",
+                vendorPreset = VendorPreset.ALDI_SUED,
+                vendorCustomText = "",
+                expenseAmountText = "",
+                expenseItems = emptyList(),
+                totalRevenueCents = 0,
+                totalExpenseCents = 0,
+                netCents = 0,
+                isLoading = false,
+                canSave = false,
+                canAddExpense = false,
+                errorMessage = null
+            )
+    }
 }
 
 sealed interface EntryAction {
@@ -62,6 +89,10 @@ sealed interface EntryAction {
     data object ClearError : EntryAction
 }
 
+/**
+ * UI effects (one-off events)
+ * - SaveSuccess: for showing dialog + focusing Bargeld
+ */
 sealed interface EntryEffect {
-    data class Toast(val message: String) : EntryEffect
+    data object SaveSuccess : EntryEffect
 }

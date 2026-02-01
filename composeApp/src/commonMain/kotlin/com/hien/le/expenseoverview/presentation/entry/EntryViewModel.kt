@@ -3,14 +3,19 @@ package com.hien.le.expenseoverview.presentation.entry
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hien.le.expenseoverview.domain.model.Cents
-import com.hien.le.expenseoverview.domain.usecase.*
-import com.hien.le.expenseoverview.platform.Clock
+import com.hien.le.expenseoverview.domain.usecase.AddExpenseItem
+import com.hien.le.expenseoverview.domain.usecase.DeleteExpenseItem
+import com.hien.le.expenseoverview.domain.usecase.GetDailyEntry
+import com.hien.le.expenseoverview.domain.usecase.GetExpenseItemsByDate
+import com.hien.le.expenseoverview.domain.usecase.UpsertDailyEntryWithAudit
 import com.hien.le.expenseoverview.presentation.common.CoroutineDispatchers
 import com.hien.le.expenseoverview.presentation.common.MoneyInput
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 class EntryViewModel(
     private val getDailyEntry: GetDailyEntry,
@@ -18,28 +23,32 @@ class EntryViewModel(
     private val getExpenseItemsByDate: GetExpenseItemsByDate,
     private val addExpenseItem: AddExpenseItem,
     private val deleteExpenseItem: DeleteExpenseItem,
-    private val clock: Clock,
     private val dispatchers: CoroutineDispatchers,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(EntryState(dateIso = "1970-01-01"))
+    private val _state = MutableStateFlow(EntryState.initial(todayIso()))
     val state: StateFlow<EntryState> = _state.asStateFlow()
 
-    private val _effects = Channel<EntryEffect>(capacity = Channel.BUFFERED)
-    val effects: Flow<EntryEffect> = _effects.receiveAsFlow()
+    private val _effects = MutableSharedFlow<EntryEffect>(extraBufferCapacity = 16)
+    val effects: Flow<EntryEffect> = _effects.asSharedFlow()
 
     fun dispatch(action: EntryAction) {
         when (action) {
             is EntryAction.Load -> load(action.dateIso)
             is EntryAction.ChangeDate -> load(action.dateIso)
 
-            is EntryAction.EditBargeld -> updateMoney(text = action.text, kind = Field.BARGELD)
-            is EntryAction.EditKarte -> updateMoney(text = action.text, kind = Field.KARTE)
+            is EntryAction.EditBargeld -> updateMoney(Field.BARGELD, action.text)
+            is EntryAction.EditKarte -> updateMoney(Field.KARTE, action.text)
             is EntryAction.EditNote -> _state.update { it.copy(noteText = action.text) }
 
-            is EntryAction.SelectVendor -> _state.update { it.copy(vendorPreset = action.preset).recalcAddExpenseEnabled() }
-            is EntryAction.EditVendorCustom -> _state.update { it.copy(vendorCustomText = action.text).recalcAddExpenseEnabled() }
-            is EntryAction.EditExpenseAmount -> _state.update { it.copy(expenseAmountText = action.text).recalcAddExpenseEnabled() }
+            is EntryAction.SelectVendor ->
+                _state.update { it.copy(vendorPreset = action.preset).recalcAddExpenseEnabled() }
+
+            is EntryAction.EditVendorCustom ->
+                _state.update { it.copy(vendorCustomText = action.text).recalcAddExpenseEnabled() }
+
+            is EntryAction.EditExpenseAmount ->
+                _state.update { it.copy(expenseAmountText = action.text).recalcAddExpenseEnabled() }
 
             EntryAction.AddExpenseItem -> addExpense()
             is EntryAction.DeleteExpenseItem -> deleteExpense(action.id)
@@ -57,13 +66,12 @@ class EntryViewModel(
             val receipts = withContext(dispatchers.io) { getExpenseItemsByDate(dateIso) }
 
             val base = if (entry == null) {
-                EntryState(dateIso = dateIso)
+                EntryState.initial(dateIso)
             } else {
-                EntryState(
-                    dateIso = dateIso,
+                EntryState.initial(dateIso).copy(
                     bargeldText = formatCents(entry.bargeld.value),
                     karteText = formatCents(entry.karte.value),
-                    noteText = entry.note.orEmpty()
+                    noteText = entry.note.orEmpty(),
                 )
             }
 
@@ -76,15 +84,18 @@ class EntryViewModel(
                 )
             }
 
-            _state.value = base.copy(expenseItems = uiItems).recalcTotals().recalcAddExpenseEnabled().copy(isLoading = false)
+            _state.value = base
+                .copy(expenseItems = uiItems, isLoading = false)
+                .recalcTotals()
+                .recalcAddExpenseEnabled()
         }
     }
 
-    private fun updateMoney(text: String, kind: Field) {
-        _state.update {
+    private fun updateMoney(kind: Field, text: String) {
+        _state.update { s ->
             val next = when (kind) {
-                Field.BARGELD -> it.copy(bargeldText = text)
-                Field.KARTE -> it.copy(karteText = text)
+                Field.BARGELD -> s.copy(bargeldText = text)
+                Field.KARTE -> s.copy(karteText = text)
             }
             next.recalcTotals()
         }
@@ -100,11 +111,11 @@ class EntryViewModel(
         val cents = MoneyInput.parseToCents(s.expenseAmountText)
 
         if (vendor.isBlank()) {
-            _state.update { it.copy(errorMessage = "Vui lòng nhập tên nơi mua") }
+            _state.update { it.copy(errorMessage = "VENDOR_EMPTY") }
             return
         }
-        if (cents == null) {
-            _state.update { it.copy(errorMessage = "Số tiền chi tiêu không hợp lệ") }
+        if (cents == null || cents < 0) {
+            _state.update { it.copy(errorMessage = "AMOUNT_INVALID") }
             return
         }
 
@@ -127,8 +138,8 @@ class EntryViewModel(
                         vendorCustomText = if (cur.vendorPreset == VendorPreset.OTHER) "" else cur.vendorCustomText
                     ).recalcTotals().recalcAddExpenseEnabled()
                 }
-            }.onFailure { ex ->
-                _state.update { it.copy(errorMessage = ex.message ?: "Lỗi thêm chi tiêu") }
+            }.onFailure {
+                _state.update { it.copy(errorMessage = "ADD_EXPENSE_FAILED") }
             }
         }
     }
@@ -143,19 +154,23 @@ class EntryViewModel(
                         .recalcTotals()
                         .recalcAddExpenseEnabled()
                 }
-            }.onFailure { ex ->
-                _state.update { it.copy(errorMessage = ex.message ?: "Lỗi xóa chi tiêu") }
+            }.onFailure {
+                _state.update { it.copy(errorMessage = "DELETE_EXPENSE_FAILED") }
             }
         }
     }
 
     private fun save(comment: String?) {
         val s = _state.value
-        val b = MoneyInput.parseToCents(s.bargeldText)
-        val k = MoneyInput.parseToCents(s.karteText)
+        val bargeld = MoneyInput.parseToCents(s.bargeldText)
+        val karte = MoneyInput.parseToCents(s.karteText)
 
-        if (b == null || k == null) {
-            _state.update { it.copy(errorMessage = "Không thể lưu: dữ liệu tiền không hợp lệ") }
+        if (bargeld == null || karte == null) {
+            _state.update { it.copy(errorMessage = "SAVE_INVALID_INPUT") }
+            return
+        }
+        if (s.bargeldText.trim().isEmpty() || s.karteText.trim().isEmpty()) {
+            _state.update { it.copy(errorMessage = "SAVE_EMPTY_REQUIRED") }
             return
         }
 
@@ -167,32 +182,39 @@ class EntryViewModel(
                     upsertWithAudit(
                         UpsertDailyEntryWithAudit.Input(
                             dateIso = s.dateIso,
-                            bargeld = Cents(b),
-                            karte = Cents(k),
-                            expense = Cents(0), // legacy param; you can remove from usecase later
+                            bargeld = Cents(bargeld),
+                            karte = Cents(karte),
+                            expense = Cents(0), // legacy param; bạn có thể bỏ khỏi usecase sau
                             note = s.noteText.ifBlank { null },
                             comment = comment
                         )
                     )
                 }
             }.onSuccess {
-                _state.update { it.copy(isLoading = false, lastSavedAt = clock.nowEpochMillis()) }
-                _effects.trySend(EntryEffect.Toast("Đã lưu"))
-            }.onFailure { ex ->
-                _state.update { it.copy(isLoading = false, errorMessage = ex.message ?: "Lỗi khi lưu") }
+                // ✅ Clear everything & reset to today
+                _state.value = EntryState.initial(todayIso())
+                _effects.tryEmit(EntryEffect.SaveSuccess)
+            }.onFailure {
+                _state.update { it.copy(isLoading = false, errorMessage = "SAVE_FAILED") }
             }
         }
     }
 
+    // ---------- helpers ----------
+
     private fun EntryState.recalcTotals(): EntryState {
-        val b = MoneyInput.parseToCents(bargeldText) ?: 0L
-        val k = MoneyInput.parseToCents(karteText) ?: 0L
-        val revenue = b + k
+        val b = MoneyInput.parseToCents(bargeldText)
+        val k = MoneyInput.parseToCents(karteText)
+
+        val b0 = b ?: 0L
+        val k0 = k ?: 0L
+
+        val revenue = b0 + k0
         val expenseTotal = expenseItems.sumOf { it.amountCents }
         val net = revenue - expenseTotal
 
-        val valid = MoneyInput.parseToCents(bargeldText) != null &&
-                MoneyInput.parseToCents(karteText) != null
+        val requiredFilled = bargeldText.trim().isNotEmpty() && karteText.trim().isNotEmpty()
+        val valid = (b != null && k != null && requiredFilled)
 
         return copy(
             totalRevenueCents = revenue,
@@ -210,6 +232,9 @@ class EntryViewModel(
         val amountOk = MoneyInput.parseToCents(expenseAmountText) != null
         return copy(canAddExpense = vendorOk && amountOk)
     }
+
+    private fun todayIso(): String =
+        Clock.System.todayIn(TimeZone.currentSystemDefault()).toString()
 
     private fun formatCents(cents: Long): String {
         val euros = cents / 100

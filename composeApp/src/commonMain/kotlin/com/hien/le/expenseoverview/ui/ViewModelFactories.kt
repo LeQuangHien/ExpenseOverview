@@ -15,7 +15,6 @@ fun entryViewModelFactory(container: AppContainer) = viewModelFactory {
             getExpenseItemsByDate = container.getExpenseItemsByDate,
             addExpenseItem = container.addExpenseItem,
             deleteExpenseItem = container.deleteExpenseItem,
-            clock = container.clock,
             dispatchers = container.dispatchers
         )
     }
