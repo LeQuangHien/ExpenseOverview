@@ -38,19 +38,22 @@ kotlin {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
+            implementation(compose.material)
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation(compose.preview)
+            implementation(compose.materialIconsExtended) // Added for Edit, List, ShowChart icons
+            
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
 
-            // implementation(libs.kotlinx.coroutines.core)
-            // implementation(libs.kotlinx.datetime)
-
             // ✅ Room KMP (commonized)
             implementation(libs.androidx.room.runtime)
-            // ✅ Recommended: bundle SQLite for consistent behavior across platforms
             implementation(libs.androidx.sqlite.bundled)
+
+            api("androidx.lifecycle:lifecycle-viewmodel:2.10.0")
+
+            implementation(libs.kotlinx.datetime)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

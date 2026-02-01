@@ -1,10 +1,11 @@
 package com.hien.le.expenseoverview.presentation.entry
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.hien.le.expenseoverview.domain.model.Cents
 import com.hien.le.expenseoverview.domain.usecase.GetDailyEntry
 import com.hien.le.expenseoverview.domain.usecase.UpsertDailyEntryWithAudit
 import com.hien.le.expenseoverview.platform.Clock
-import com.hien.le.expenseoverview.presentation.common.BaseViewModel
 import com.hien.le.expenseoverview.presentation.common.CoroutineDispatchers
 import com.hien.le.expenseoverview.presentation.common.MoneyInput
 import kotlinx.coroutines.channels.Channel
@@ -16,8 +17,8 @@ class EntryViewModel(
     private val getDailyEntry: GetDailyEntry,
     private val upsertWithAudit: UpsertDailyEntryWithAudit,
     private val clock: Clock,
-    dispatchers: CoroutineDispatchers
-) : BaseViewModel(dispatchers) {
+    private val dispatchers: CoroutineDispatchers,
+) : ViewModel() {
 
     private val _state = MutableStateFlow(EntryState(dateIso = "1970-01-01"))
     val state: StateFlow<EntryState> = _state.asStateFlow()
@@ -29,9 +30,9 @@ class EntryViewModel(
         when (action) {
             is EntryAction.Load -> load(action.dateIso)
             is EntryAction.ChangeDate -> load(action.dateIso)
-            is EntryAction.EditBargeld -> updateMoney(text = action.text, kind = Field.BARGELD)
-            is EntryAction.EditKarte -> updateMoney(text = action.text, kind = Field.KARTE)
-            is EntryAction.EditExpense -> updateMoney(text = action.text, kind = Field.EXPENSE)
+            is EntryAction.EditBargeld -> updateMoney(action.text, Field.BARGELD)
+            is EntryAction.EditKarte -> updateMoney(action.text, Field.KARTE)
+            is EntryAction.EditExpense -> updateMoney(action.text, Field.EXPENSE)
             is EntryAction.EditNote -> _state.update { it.copy(noteText = action.text) }
             is EntryAction.Save -> save(action.auditComment)
             EntryAction.ClearError -> _state.update { it.copy(errorMessage = null) }
@@ -39,7 +40,7 @@ class EntryViewModel(
     }
 
     private fun load(dateIso: String) {
-        vmScope.launch {
+        viewModelScope.launch {
             _state.update { it.copy(isLoading = true, errorMessage = null, dateIso = dateIso) }
 
             val entry = withContext(dispatchers.io) { getDailyEntry(dateIso) }
@@ -99,7 +100,7 @@ class EntryViewModel(
             return
         }
 
-        vmScope.launch {
+        viewModelScope.launch {
             _state.update { it.copy(isLoading = true, errorMessage = null) }
 
             runCatching {

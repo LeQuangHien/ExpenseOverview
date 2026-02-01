@@ -1,8 +1,9 @@
 package com.hien.le.expenseoverview.presentation.summary
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.hien.le.expenseoverview.domain.model.SummaryRange
 import com.hien.le.expenseoverview.domain.usecase.GetSummary
-import com.hien.le.expenseoverview.presentation.common.BaseViewModel
 import com.hien.le.expenseoverview.presentation.common.CoroutineDispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -11,8 +12,8 @@ import kotlinx.coroutines.withContext
 
 class SummaryViewModel(
     private val getSummary: GetSummary,
-    dispatchers: CoroutineDispatchers
-) : BaseViewModel(dispatchers) {
+    private val dispatchers: CoroutineDispatchers,
+) : ViewModel() {
 
     private val _state = MutableStateFlow(SummaryState())
     val state: StateFlow<SummaryState> = _state.asStateFlow()
@@ -30,7 +31,7 @@ class SummaryViewModel(
     private fun load(range: SummaryRange, anchor: String) {
         val (from, to) = computeRange(range, anchor)
 
-        vmScope.launch {
+        viewModelScope.launch {
             _state.update {
                 it.copy(
                     isLoading = true,
@@ -53,8 +54,7 @@ class SummaryViewModel(
     }
 
     private fun computeRange(range: SummaryRange, anchorIso: String): Pair<String, String> {
-        // Stub để compile & chạy ngay.
-        // Nâng cấp: dùng kotlinx-datetime để tính đúng tuần/tháng.
+        // Stub để compile & chạy ngay; bạn nâng cấp bằng kotlinx-datetime.
         return when (range) {
             SummaryRange.DAY -> anchorIso to anchorIso
             SummaryRange.WEEK -> anchorIso to anchorIso
