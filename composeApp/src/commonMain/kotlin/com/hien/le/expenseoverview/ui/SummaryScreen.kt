@@ -6,6 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.hien.le.expenseoverview.domain.model.SummaryRange
+import com.hien.le.expenseoverview.presentation.common.MoneyFormatter
 import com.hien.le.expenseoverview.presentation.summary.SummaryAction
 import com.hien.le.expenseoverview.presentation.summary.SummaryViewModel
 import com.hien.le.expenseoverview.ui.components.DateQuickPicker
@@ -23,9 +24,7 @@ fun SummaryScreen(vm: SummaryViewModel) {
 
         DateQuickPicker(
             selectedDateIso = state.anchorDateIso,
-            onSelectDateIso = { iso ->
-                vm.dispatch(SummaryAction.Load(state.range, iso))
-            }
+            onSelectDateIso = { iso -> vm.dispatch(SummaryAction.Load(state.range, iso)) }
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -52,25 +51,25 @@ fun SummaryScreen(vm: SummaryViewModel) {
 
         val summary = state.summary
         if (summary == null) {
-            Text("Chưa có dữ liệu (hoặc chưa load).")
+            Text("Chưa có dữ liệu.")
             if (state.errorMessage != null) {
                 Text(state.errorMessage!!, color = MaterialTheme.colorScheme.error)
             }
             return
         }
 
-        // Tổng quan
         Card {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text("Range: ${summary.fromDateIso} → ${summary.toDateIso}")
-                Text("Rows: ${summary.rows.size}")
+                Text("Revenue: ${MoneyFormatter.centsToDeEuro(summary.totalRevenue)}")
+                Text("Expense: ${MoneyFormatter.centsToDeEuro(summary.totalExpense)}")
+                Text("Net: ${MoneyFormatter.centsToDeEuro(summary.totalNet)}", style = MaterialTheme.typography.titleMedium)
             }
         }
 
-        // Table: sticky header trên tablet
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val sticky = maxWidth >= 600.dp
             SummaryTable(

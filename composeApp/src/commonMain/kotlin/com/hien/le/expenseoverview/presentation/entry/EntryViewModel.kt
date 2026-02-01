@@ -3,8 +3,7 @@ package com.hien.le.expenseoverview.presentation.entry
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hien.le.expenseoverview.domain.model.Cents
-import com.hien.le.expenseoverview.domain.usecase.GetDailyEntry
-import com.hien.le.expenseoverview.domain.usecase.UpsertDailyEntryWithAudit
+import com.hien.le.expenseoverview.domain.usecase.*
 import com.hien.le.expenseoverview.platform.Clock
 import com.hien.le.expenseoverview.presentation.common.CoroutineDispatchers
 import com.hien.le.expenseoverview.presentation.common.MoneyInput
@@ -16,6 +15,9 @@ import kotlinx.coroutines.withContext
 class EntryViewModel(
     private val getDailyEntry: GetDailyEntry,
     private val upsertWithAudit: UpsertDailyEntryWithAudit,
+    private val getExpenseItemsByDate: GetExpenseItemsByDate,
+    private val addExpenseItem: AddExpenseItem,
+    private val deleteExpenseItem: DeleteExpenseItem,
     private val clock: Clock,
     private val dispatchers: CoroutineDispatchers,
 ) : ViewModel() {
@@ -30,10 +32,18 @@ class EntryViewModel(
         when (action) {
             is EntryAction.Load -> load(action.dateIso)
             is EntryAction.ChangeDate -> load(action.dateIso)
-            is EntryAction.EditBargeld -> updateMoney(action.text, Field.BARGELD)
-            is EntryAction.EditKarte -> updateMoney(action.text, Field.KARTE)
-            is EntryAction.EditExpense -> updateMoney(action.text, Field.EXPENSE)
+
+            is EntryAction.EditBargeld -> updateMoney(text = action.text, kind = Field.BARGELD)
+            is EntryAction.EditKarte -> updateMoney(text = action.text, kind = Field.KARTE)
             is EntryAction.EditNote -> _state.update { it.copy(noteText = action.text) }
+
+            is EntryAction.SelectVendor -> _state.update { it.copy(vendorPreset = action.preset).recalcAddExpenseEnabled() }
+            is EntryAction.EditVendorCustom -> _state.update { it.copy(vendorCustomText = action.text).recalcAddExpenseEnabled() }
+            is EntryAction.EditExpenseAmount -> _state.update { it.copy(expenseAmountText = action.text).recalcAddExpenseEnabled() }
+
+            EntryAction.AddExpenseItem -> addExpense()
+            is EntryAction.DeleteExpenseItem -> deleteExpense(action.id)
+
             is EntryAction.Save -> save(action.auditComment)
             EntryAction.ClearError -> _state.update { it.copy(errorMessage = null) }
         }
@@ -44,20 +54,29 @@ class EntryViewModel(
             _state.update { it.copy(isLoading = true, errorMessage = null, dateIso = dateIso) }
 
             val entry = withContext(dispatchers.io) { getDailyEntry(dateIso) }
+            val receipts = withContext(dispatchers.io) { getExpenseItemsByDate(dateIso) }
 
-            val newState = if (entry == null) {
+            val base = if (entry == null) {
                 EntryState(dateIso = dateIso)
             } else {
                 EntryState(
                     dateIso = dateIso,
                     bargeldText = formatCents(entry.bargeld.value),
                     karteText = formatCents(entry.karte.value),
-                    expenseText = formatCents(entry.expense.value),
-                    noteText = entry.note.orEmpty(),
-                ).recalc()
+                    noteText = entry.note.orEmpty()
+                )
             }
 
-            _state.value = newState.copy(isLoading = false)
+            val uiItems = receipts.map {
+                ExpenseItemUi(
+                    id = it.id,
+                    vendorName = it.vendorName,
+                    amountText = formatCents(it.amount.value),
+                    amountCents = it.amount.value
+                )
+            }
+
+            _state.value = base.copy(expenseItems = uiItems).recalcTotals().recalcAddExpenseEnabled().copy(isLoading = false)
         }
     }
 
@@ -66,36 +85,76 @@ class EntryViewModel(
             val next = when (kind) {
                 Field.BARGELD -> it.copy(bargeldText = text)
                 Field.KARTE -> it.copy(karteText = text)
-                Field.EXPENSE -> it.copy(expenseText = text)
             }
-            next.recalc()
+            next.recalcTotals()
         }
     }
 
-    private fun EntryState.recalc(): EntryState {
-        val b = MoneyInput.parseToCents(bargeldText)
-        val k = MoneyInput.parseToCents(karteText)
-        val e = MoneyInput.parseToCents(expenseText)
+    private fun addExpense() {
+        val s = _state.value
 
-        val valid = (b != null && k != null && e != null)
-        val revenue = (b ?: 0L) + (k ?: 0L)
-        val net = revenue - (e ?: 0L)
+        val vendor = when (s.vendorPreset) {
+            VendorPreset.OTHER -> s.vendorCustomText.trim()
+            else -> s.vendorPreset.label
+        }
+        val cents = MoneyInput.parseToCents(s.expenseAmountText)
 
-        return copy(
-            totalRevenueCents = revenue,
-            netCents = net,
-            canSave = valid,
-            errorMessage = if (!valid) "Sai định dạng tiền (vd: 12,30)" else errorMessage
-        )
+        if (vendor.isBlank()) {
+            _state.update { it.copy(errorMessage = "Vui lòng nhập tên nơi mua") }
+            return
+        }
+        if (cents == null) {
+            _state.update { it.copy(errorMessage = "Số tiền chi tiêu không hợp lệ") }
+            return
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                withContext(dispatchers.io) {
+                    addExpenseItem(AddExpenseItem.Input(s.dateIso, vendor, Cents(cents)))
+                }
+            }.onSuccess { item ->
+                _state.update { cur ->
+                    val nextItems = cur.expenseItems + ExpenseItemUi(
+                        id = item.id,
+                        vendorName = item.vendorName,
+                        amountText = formatCents(item.amount.value),
+                        amountCents = item.amount.value
+                    )
+                    cur.copy(
+                        expenseItems = nextItems,
+                        expenseAmountText = "",
+                        vendorCustomText = if (cur.vendorPreset == VendorPreset.OTHER) "" else cur.vendorCustomText
+                    ).recalcTotals().recalcAddExpenseEnabled()
+                }
+            }.onFailure { ex ->
+                _state.update { it.copy(errorMessage = ex.message ?: "Lỗi thêm chi tiêu") }
+            }
+        }
+    }
+
+    private fun deleteExpense(id: String) {
+        viewModelScope.launch {
+            runCatching {
+                withContext(dispatchers.io) { deleteExpenseItem(id) }
+            }.onSuccess {
+                _state.update { cur ->
+                    cur.copy(expenseItems = cur.expenseItems.filterNot { it.id == id })
+                        .recalcTotals()
+                        .recalcAddExpenseEnabled()
+                }
+            }.onFailure { ex ->
+                _state.update { it.copy(errorMessage = ex.message ?: "Lỗi xóa chi tiêu") }
+            }
+        }
     }
 
     private fun save(comment: String?) {
         val s = _state.value
         val b = MoneyInput.parseToCents(s.bargeldText)
         val k = MoneyInput.parseToCents(s.karteText)
-        val e = MoneyInput.parseToCents(s.expenseText)
 
-        if (b == null || k == null || e == null) {
+        if (b == null || k == null) {
             _state.update { it.copy(errorMessage = "Không thể lưu: dữ liệu tiền không hợp lệ") }
             return
         }
@@ -110,7 +169,7 @@ class EntryViewModel(
                             dateIso = s.dateIso,
                             bargeld = Cents(b),
                             karte = Cents(k),
-                            expense = Cents(e),
+                            expense = Cents(0), // legacy param; you can remove from usecase later
                             note = s.noteText.ifBlank { null },
                             comment = comment
                         )
@@ -125,11 +184,38 @@ class EntryViewModel(
         }
     }
 
+    private fun EntryState.recalcTotals(): EntryState {
+        val b = MoneyInput.parseToCents(bargeldText) ?: 0L
+        val k = MoneyInput.parseToCents(karteText) ?: 0L
+        val revenue = b + k
+        val expenseTotal = expenseItems.sumOf { it.amountCents }
+        val net = revenue - expenseTotal
+
+        val valid = MoneyInput.parseToCents(bargeldText) != null &&
+                MoneyInput.parseToCents(karteText) != null
+
+        return copy(
+            totalRevenueCents = revenue,
+            totalExpenseCents = expenseTotal,
+            netCents = net,
+            canSave = valid
+        )
+    }
+
+    private fun EntryState.recalcAddExpenseEnabled(): EntryState {
+        val vendorOk = when (vendorPreset) {
+            VendorPreset.OTHER -> vendorCustomText.trim().isNotBlank()
+            else -> true
+        }
+        val amountOk = MoneyInput.parseToCents(expenseAmountText) != null
+        return copy(canAddExpense = vendorOk && amountOk)
+    }
+
     private fun formatCents(cents: Long): String {
         val euros = cents / 100
         val c = (cents % 100).toString().padStart(2, '0')
         return "$euros,$c"
     }
 
-    private enum class Field { BARGELD, KARTE, EXPENSE }
+    private enum class Field { BARGELD, KARTE }
 }

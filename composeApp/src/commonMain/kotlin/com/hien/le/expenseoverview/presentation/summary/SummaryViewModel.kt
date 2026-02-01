@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.hien.le.expenseoverview.domain.model.SummaryRange
 import com.hien.le.expenseoverview.domain.usecase.GetSummary
 import com.hien.le.expenseoverview.presentation.common.CoroutineDispatchers
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -17,9 +16,6 @@ class SummaryViewModel(
 
     private val _state = MutableStateFlow(SummaryState())
     val state: StateFlow<SummaryState> = _state.asStateFlow()
-
-    private val _effects = Channel<SummaryEffect>(capacity = Channel.BUFFERED)
-    val effects: Flow<SummaryEffect> = _effects.receiveAsFlow()
 
     fun dispatch(action: SummaryAction) {
         when (action) {
@@ -54,7 +50,7 @@ class SummaryViewModel(
     }
 
     private fun computeRange(range: SummaryRange, anchorIso: String): Pair<String, String> {
-        // Stub để compile & chạy ngay; bạn nâng cấp bằng kotlinx-datetime.
+        // TODO: bạn nâng cấp bằng kotlinx-datetime (tuần/tháng)
         return when (range) {
             SummaryRange.DAY -> anchorIso to anchorIso
             SummaryRange.WEEK -> anchorIso to anchorIso

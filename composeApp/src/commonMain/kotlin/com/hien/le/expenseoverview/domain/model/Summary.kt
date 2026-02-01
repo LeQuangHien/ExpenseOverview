@@ -6,10 +6,11 @@ data class SummaryRow(
     val dateIso: String,
     val bargeld: Cents,
     val karte: Cents,
-    val expense: Cents
+    val expenseTotal: Cents,
+    val receipts: List<ExpenseItem>
 ) {
     val revenue: Long get() = bargeld.value + karte.value
-    val net: Long get() = revenue - expense.value
+    val net: Long get() = revenue - expenseTotal.value
 }
 
 data class Summary(
@@ -20,7 +21,7 @@ data class Summary(
 ) {
     val totalBargeld: Long = rows.sumOf { it.bargeld.value }
     val totalKarte: Long = rows.sumOf { it.karte.value }
-    val totalExpense: Long = rows.sumOf { it.expense.value }
+    val totalExpense: Long = rows.sumOf { it.expenseTotal.value }
     val totalRevenue: Long = totalBargeld + totalKarte
     val totalNet: Long = totalRevenue - totalExpense
 }

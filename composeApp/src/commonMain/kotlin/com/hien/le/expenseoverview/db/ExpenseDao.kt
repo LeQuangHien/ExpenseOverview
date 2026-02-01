@@ -8,7 +8,7 @@ import androidx.room.Query
 @Dao
 interface ExpenseDao {
 
-    // Daily entry
+    // ---------- Daily entry ----------
     @Query("SELECT * FROM daily_entry WHERE dateIso = :dateIso LIMIT 1")
     suspend fun getEntryByDate(dateIso: String): DailyEntryEntity?
 
@@ -22,7 +22,24 @@ interface ExpenseDao {
     """)
     suspend fun listEntriesInRange(fromDateIso: String, toDateIso: String): List<DailyEntryEntity>
 
-    // Audit
+    // ---------- Expense items ----------
+    @Query("SELECT * FROM expense_item WHERE dateIso = :dateIso ORDER BY createdAt ASC")
+    suspend fun listExpenseItemsByDate(dateIso: String): List<ExpenseItemEntity>
+
+    @Query("""
+        SELECT * FROM expense_item
+        WHERE dateIso >= :fromDateIso AND dateIso <= :toDateIso
+        ORDER BY dateIso ASC, createdAt ASC
+    """)
+    suspend fun listExpenseItemsInRange(fromDateIso: String, toDateIso: String): List<ExpenseItemEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertExpenseItem(entity: ExpenseItemEntity)
+
+    @Query("DELETE FROM expense_item WHERE id = :id")
+    suspend fun deleteExpenseItem(id: String)
+
+    // ---------- Audit ----------
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAuditEvent(entity: AuditEventEntity)
 

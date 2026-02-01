@@ -8,9 +8,10 @@ import androidx.room.RoomDatabaseConstructor
 @Database(
     entities = [
         DailyEntryEntity::class,
+        ExpenseItemEntity::class,
         AuditEventEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -18,7 +19,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
 }
 
-// Room compiler generates actual implementations for this expect object.
 @Suppress("KotlinNoActualForExpect")
 expect object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase> {
     override fun initialize(): AppDatabase

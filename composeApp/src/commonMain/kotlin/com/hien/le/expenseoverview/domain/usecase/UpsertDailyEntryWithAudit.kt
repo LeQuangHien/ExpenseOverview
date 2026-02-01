@@ -31,7 +31,6 @@ class UpsertDailyEntryWithAudit(
             dateIso = input.dateIso,
             bargeld = input.bargeld,
             karte = input.karte,
-            expense = input.expense,
             note = input.note,
             createdAt = createdAt,
             updatedAt = now
@@ -64,7 +63,6 @@ class UpsertDailyEntryWithAudit(
 
         emit("bargeld", old.bargeld.value.toString(), new.bargeld.value.toString())
         emit("karte", old.karte.value.toString(), new.karte.value.toString())
-        emit("expense", old.expense.value.toString(), new.expense.value.toString())
         emit("note", old.note.orEmpty(), new.note.orEmpty())
     }
 }

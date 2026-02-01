@@ -12,6 +12,9 @@ fun entryViewModelFactory(container: AppContainer) = viewModelFactory {
         EntryViewModel(
             getDailyEntry = container.getDailyEntry,
             upsertWithAudit = container.upsertDailyEntryWithAudit,
+            getExpenseItemsByDate = container.getExpenseItemsByDate,
+            addExpenseItem = container.addExpenseItem,
+            deleteExpenseItem = container.deleteExpenseItem,
             clock = container.clock,
             dispatchers = container.dispatchers
         )

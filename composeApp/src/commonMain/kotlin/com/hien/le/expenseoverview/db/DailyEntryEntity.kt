@@ -8,7 +8,6 @@ data class DailyEntryEntity(
     @PrimaryKey val dateIso: String, // YYYY-MM-DD
     val bargeldCents: Long,
     val karteCents: Long,
-    val expenseCents: Long,
     val note: String?,
     val createdAt: Long,
     val updatedAt: Long
