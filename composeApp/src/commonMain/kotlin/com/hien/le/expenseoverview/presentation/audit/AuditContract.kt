@@ -1,14 +1,18 @@
 package com.hien.le.expenseoverview.presentation.audit
 
-import com.hien.le.expenseoverview.domain.model.AuditEvent
+data class AuditEventUi(
+    val entityDateIso: String,
+    val field: String,
+    val oldValue: String,
+    val newValue: String,
+    val editedAt: Long,
+    val comment: String?
+)
 
 data class AuditState(
-    val dateIso: String? = null,
-    val fromEpochMs: Long? = null,
-    val toEpochMs: Long? = null,
     val isLoading: Boolean = false,
-    val events: List<AuditEvent> = emptyList(),
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val events: List<AuditEventUi> = emptyList()
 )
 
 sealed interface AuditAction {

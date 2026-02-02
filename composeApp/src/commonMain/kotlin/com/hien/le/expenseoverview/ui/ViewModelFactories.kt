@@ -10,11 +10,8 @@ import com.hien.le.expenseoverview.presentation.summary.SummaryViewModel
 fun entryViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer {
         EntryViewModel(
-            getDailyEntry = container.getDailyEntry,
-            upsertWithAudit = container.upsertDailyEntryWithAudit,
-            getExpenseItemsByDate = container.getExpenseItemsByDate,
-            addExpenseItem = container.addExpenseItem,
-            deleteExpenseItem = container.deleteExpenseItem,
+            getEntryWithExpenses = container.getEntryWithExpenses,
+            saveDailyEntryWithExpenses = container.saveDailyEntryWithExpenses,
             dispatchers = container.dispatchers
         )
     }
@@ -32,8 +29,7 @@ fun summaryViewModelFactory(container: AppContainer) = viewModelFactory {
 fun auditViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer {
         AuditLogViewModel(
-            getAuditEvents = container.getAuditEvents,
-            purgeOldAudit = container.purgeOldAudit,
+            repo = container.auditRepo,
             dispatchers = container.dispatchers
         )
     }

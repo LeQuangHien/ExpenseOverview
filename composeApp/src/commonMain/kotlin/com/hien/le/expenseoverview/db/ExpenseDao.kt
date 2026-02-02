@@ -39,6 +39,14 @@ interface ExpenseDao {
     @Query("DELETE FROM expense_item WHERE id = :id")
     suspend fun deleteExpenseItem(id: String)
 
+    // ✅ NEW: delete all items of a day (for "save = replace receipts")
+    @Query("DELETE FROM expense_item WHERE dateIso = :dateIso")
+    suspend fun deleteExpenseItemsByDate(dateIso: String)
+
+    // ✅ NEW: sum expense cents of a day (for audit old/new)
+    @Query("SELECT COALESCE(SUM(amountCents), 0) FROM expense_item WHERE dateIso = :dateIso")
+    suspend fun sumExpenseCentsByDate(dateIso: String): Long
+
     // ---------- Audit ----------
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAuditEvent(entity: AuditEventEntity)

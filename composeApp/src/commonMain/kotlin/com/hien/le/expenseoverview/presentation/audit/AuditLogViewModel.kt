@@ -2,68 +2,63 @@ package com.hien.le.expenseoverview.presentation.audit
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.hien.le.expenseoverview.domain.usecase.GetAuditEvents
-import com.hien.le.expenseoverview.domain.usecase.PurgeOldAudit
+import com.hien.le.expenseoverview.domain.repository.AuditRepository
 import com.hien.le.expenseoverview.presentation.common.CoroutineDispatchers
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.Clock
 
 class AuditLogViewModel(
-    private val getAuditEvents: GetAuditEvents,
-    private val purgeOldAudit: PurgeOldAudit,
+    private val repo: AuditRepository,
     private val dispatchers: CoroutineDispatchers,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(AuditState())
+    private val _state = MutableStateFlow(AuditState(isLoading = true))
     val state: StateFlow<AuditState> = _state.asStateFlow()
 
-    private val _effects = Channel<AuditEffect>(capacity = Channel.BUFFERED)
-    val effects: Flow<AuditEffect> = _effects.receiveAsFlow()
-
-    fun dispatch(action: AuditAction) {
-        when (action) {
-            is AuditAction.LoadByDate -> loadByDate(action.dateIso)
-            is AuditAction.LoadByRange -> loadByRange(action.fromEpochMs, action.toEpochMs)
-            AuditAction.PurgeOld -> purge()
-            AuditAction.ClearError -> _state.update { it.copy(errorMessage = null) }
-        }
+    init {
+        refresh()
     }
 
-    private fun loadByDate(dateIso: String) {
+    /** 🔄 Public refresh – dùng cho nút Refresh */
+    fun refresh() {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, errorMessage = null, dateIso = dateIso, fromEpochMs = null, toEpochMs = null) }
+            _state.update { it.copy(isLoading = true, errorMessage = null) }
 
             runCatching {
-                withContext(dispatchers.io) { getAuditEvents.byDate(dateIso) }
+                val now = Clock.System.now().toEpochMilliseconds()
+                val from = now - 30L * 24L * 60L * 60L * 1000L // 30 ngày gần nhất
+                withContext(dispatchers.io) {
+                    repo.listInRange(from, now)
+                }
             }.onSuccess { list ->
-                _state.update { it.copy(isLoading = false, events = list) }
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        events = list.map { e ->
+                            AuditEventUi(
+                                entityDateIso = e.entityDateIso,
+                                field = e.field,
+                                oldValue = e.oldValue,
+                                newValue = e.newValue,
+                                editedAt = e.editedAt,
+                                comment = e.comment
+                            )
+                        }
+                    )
+                }
             }.onFailure { ex ->
-                _state.update { it.copy(isLoading = false, errorMessage = ex.message ?: "Lỗi tải log") }
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = ex.message ?: "Load log failed"
+                    )
+                }
             }
-        }
-    }
-
-    private fun loadByRange(from: Long, to: Long) {
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, errorMessage = null, dateIso = null, fromEpochMs = from, toEpochMs = to) }
-
-            runCatching {
-                withContext(dispatchers.io) { getAuditEvents.inRange(from, to) }
-            }.onSuccess { list ->
-                _state.update { it.copy(isLoading = false, events = list) }
-            }.onFailure { ex ->
-                _state.update { it.copy(isLoading = false, errorMessage = ex.message ?: "Lỗi tải log") }
-            }
-        }
-    }
-
-    private fun purge() {
-        viewModelScope.launch {
-            runCatching { withContext(dispatchers.io) { purgeOldAudit() } }
-                .onSuccess { _effects.trySend(AuditEffect.Toast("Đã dọn log cũ (> 1 năm)")) }
-                .onFailure { ex -> _state.update { it.copy(errorMessage = ex.message ?: "Lỗi purge log") } }
         }
     }
 }

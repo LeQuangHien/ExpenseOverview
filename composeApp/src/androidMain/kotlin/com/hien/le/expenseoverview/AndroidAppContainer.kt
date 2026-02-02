@@ -1,5 +1,6 @@
 package com.hien.le.expenseoverview
 
+import GetEntryWithExpensesUseCase
 import android.content.Context
 import com.hien.le.expenseoverview.data.repository.AuditRepositoryImpl
 import com.hien.le.expenseoverview.data.repository.EntryRepositoryImpl
@@ -18,9 +19,11 @@ class AndroidAppContainer(context: Context) : AppContainer {
     private val dao = db.expenseDao()
 
     private val entryRepo = EntryRepositoryImpl(dao)
-    private val auditRepo = AuditRepositoryImpl(dao)
     private val expenseRepo = ExpenseItemRepositoryImpl(dao)
 
+    override val auditRepo = AuditRepositoryImpl(dao)
+
+    override val getEntryWithExpenses = GetEntryWithExpensesUseCase(dao)
     override val getDailyEntry = GetDailyEntry(entryRepo)
     override val upsertDailyEntryWithAudit = UpsertDailyEntryWithAudit(entryRepo, auditRepo, clock)
     override val getSummary = GetSummary(entryRepo, expenseRepo)
@@ -29,4 +32,5 @@ class AndroidAppContainer(context: Context) : AppContainer {
     override val getExpenseItemsByDate = GetExpenseItemsByDate(expenseRepo)
     override val addExpenseItem = AddExpenseItem(expenseRepo, clock)
     override val deleteExpenseItem = DeleteExpenseItem(expenseRepo)
+    override val saveDailyEntryWithExpenses = SaveDailyEntryWithExpensesUseCase(dao, auditRepo)
 }

@@ -1,5 +1,8 @@
 package com.hien.le.expenseoverview.presentation.entry
 
+import com.hien.le.expenseoverview.presentation.common.MoneyFormatter
+import com.hien.le.expenseoverview.presentation.common.MoneyInput
+
 data class ExpenseItemUi(
     val id: String,
     val vendorName: String,
@@ -32,7 +35,7 @@ data class EntryState(
     val vendorCustomText: String = "",
     val expenseAmountText: String = "",
 
-    // expense list
+    // expense list (draft)
     val expenseItems: List<ExpenseItemUi> = emptyList(),
 
     // totals
@@ -67,7 +70,82 @@ data class EntryState(
                 canAddExpense = false,
                 errorMessage = null
             )
+
+        /**
+         * Map data loaded from DB -> UI editable state
+         *
+         * expenses: list from DB (id/vendorName/amountCents)
+         */
+        fun fromLoaded(
+            dateIso: String,
+            bargeldCents: Long,
+            karteCents: Long,
+            note: String?,
+            expenses: List<LoadedExpenseItem>
+        ): EntryState {
+            val expenseUi = expenses.map { e ->
+                ExpenseItemUi(
+                    id = e.id,
+                    vendorName = e.vendorName,
+                    amountText = centsToInputText(e.amountCents),
+                    amountCents = e.amountCents
+                )
+            }
+
+            val s = initial(dateIso).copy(
+                bargeldText = centsToInputText(bargeldCents),
+                karteText = centsToInputText(karteCents),
+                noteText = note.orEmpty(),
+                expenseItems = expenseUi
+            )
+            return s.recalcTotals().recalcAddExpenseEnabled()
+        }
+
+        // Input text should be like "12,30" (no € sign)
+        private fun centsToInputText(cents: Long): String {
+            val euro = MoneyFormatter.centsToDeEuro(cents) // e.g. "12,30 €"
+            return euro.replace("€", "").trim()
+        }
     }
+}
+
+/**
+ * Minimal loaded model (to avoid leaking Room entities to commonMain UI state).
+ * Your GetEntryWithExpensesUseCase should return these or map to these.
+ */
+data class LoadedExpenseItem(
+    val id: String,
+    val vendorName: String,
+    val amountCents: Long
+)
+
+/** State helpers (pure functions) */
+fun EntryState.recalcTotals(): EntryState {
+    val b = MoneyInput.parseToCents(bargeldText) ?: 0L
+    val k = MoneyInput.parseToCents(karteText) ?: 0L
+    val revenue = b + k
+
+    val expenseTotal = expenseItems.sumOf { it.amountCents }
+    val net = revenue - expenseTotal
+
+    val requiredFilled = bargeldText.trim().isNotEmpty() && karteText.trim().isNotEmpty()
+    val validMoney = MoneyInput.parseToCents(bargeldText) != null && MoneyInput.parseToCents(karteText) != null
+
+    return copy(
+        totalRevenueCents = revenue,
+        totalExpenseCents = expenseTotal,
+        netCents = net,
+        canSave = requiredFilled && validMoney
+    )
+}
+
+fun EntryState.recalcAddExpenseEnabled(): EntryState {
+    val vendorOk = when (vendorPreset) {
+        VendorPreset.OTHER -> vendorCustomText.trim().isNotBlank()
+        else -> true
+    }
+    val amountOk = MoneyInput.parseToCents(expenseAmountText) != null
+    return copy(canAddExpense = vendorOk && amountOk)
 }
 
 sealed interface EntryAction {
@@ -78,10 +156,10 @@ sealed interface EntryAction {
     data class EditKarte(val text: String) : EntryAction
     data class EditNote(val text: String) : EntryAction
 
-    // Expense add
     data class SelectVendor(val preset: VendorPreset) : EntryAction
     data class EditVendorCustom(val text: String) : EntryAction
     data class EditExpenseAmount(val text: String) : EntryAction
+
     data object AddExpenseItem : EntryAction
     data class DeleteExpenseItem(val id: String) : EntryAction
 
