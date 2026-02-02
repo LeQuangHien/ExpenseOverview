@@ -1,4 +1,4 @@
-package com.hien.le.expenseoverview.ui.screens
+package com.hien.le.expenseoverview.presentation.audit
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -7,8 +7,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.hien.le.expenseoverview.presentation.audit.AuditAction
-import com.hien.le.expenseoverview.presentation.audit.AuditLogViewModel
 
 @Composable
 fun AuditLogScreen(vm: AuditLogViewModel) {

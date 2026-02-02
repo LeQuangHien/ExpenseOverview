@@ -8,44 +8,89 @@ import com.hien.le.expenseoverview.presentation.common.CoroutineDispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.Clock
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
+import kotlinx.datetime.todayIn
 
 class SummaryViewModel(
     private val getSummary: GetSummary,
     private val dispatchers: CoroutineDispatchers,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(SummaryState())
+    private val tz = TimeZone.currentSystemDefault()
+
+    private val _state = MutableStateFlow(
+        run {
+            val today = Clock.System.todayIn(tz)
+            SummaryState(
+                mode = SummaryMode.MONTH,
+                anchorDateIso = today.toString(),
+                selectedMonthNumber = today.monthNumber
+            )
+        }
+    )
     val state: StateFlow<SummaryState> = _state.asStateFlow()
 
     fun dispatch(action: SummaryAction) {
         when (action) {
-            is SummaryAction.LoadMonth -> loadMonth(action.anchorDateIso)
-            is SummaryAction.ChangeMonth -> changeMonth(action.monthNumber)
+            is SummaryAction.SelectDay -> loadDay(action.dateIso)
+            SummaryAction.SelectCurrentMonth -> loadMonth(Clock.System.todayIn(tz))
+            is SummaryAction.SelectMonth -> changeMonth(action.monthNumber)
             SummaryAction.ClearError -> _state.update { it.copy(errorMessage = null) }
         }
     }
 
-    private fun loadMonth(anchorDateIso: String) {
-        val anchor = parseIsoOrToday(anchorDateIso)
-        val (from, to) = computeMonthRange(anchor)
+    private fun loadDay(dateIso: String) {
+        val date = parseIsoOrToday(dateIso)
+        val fromIso = date.toString()
+        val toIso = date.toString()
 
         viewModelScope.launch {
             _state.update {
                 it.copy(
+                    mode = SummaryMode.DAY,
                     isLoading = true,
                     errorMessage = null,
-                    range = SummaryRange.MONTH,
-                    anchorDateIso = anchor.toString(),
-                    selectedMonthNumber = anchor.monthNumber
+                    anchorDateIso = date.toString(),
+                    // dropdown vẫn show month của ngày đó (để consistent UI)
+                    selectedMonthNumber = date.monthNumber
                 )
             }
 
             runCatching {
-                withContext(dispatchers.io) { getSummary(SummaryRange.MONTH, from, to) }
+                withContext(dispatchers.io) {
+                    getSummary(SummaryRange.DAY, fromIso, toIso)
+                }
+            }.onSuccess { summary ->
+                _state.update { it.copy(isLoading = false, summary = summary) }
+            }.onFailure { ex ->
+                _state.update { it.copy(isLoading = false, errorMessage = ex.message ?: "Lỗi tải tổng kết") }
+            }
+        }
+    }
+
+    private fun loadMonth(monthAnchor: LocalDate) {
+        val (fromIso, toIso) = computeMonthRange(monthAnchor)
+
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    mode = SummaryMode.MONTH,
+                    isLoading = true,
+                    errorMessage = null,
+                    anchorDateIso = monthAnchor.toString(),
+                    selectedMonthNumber = monthAnchor.monthNumber
+                )
+            }
+
+            runCatching {
+                withContext(dispatchers.io) {
+                    getSummary(SummaryRange.MONTH, fromIso, toIso)
+                }
             }.onSuccess { summary ->
                 _state.update { it.copy(isLoading = false, summary = summary) }
             }.onFailure { ex ->
@@ -55,12 +100,13 @@ class SummaryViewModel(
     }
 
     private fun changeMonth(monthNumber: Int) {
-        val cur = parseIsoOrToday(_state.value.anchorDateIso)
-        val clamped = monthNumber.coerceIn(1, 12)
+        val current = parseIsoOrToday(_state.value.anchorDateIso)
+        val m = monthNumber.coerceIn(1, 12)
 
-        // giữ nguyên YEAR theo anchor hiện tại, chỉ đổi tháng
-        val newAnchor = LocalDate(cur.year, clamped, 1)
-        loadMonth(newAnchor.toString())
+        // ✅ Không show năm trong dropdown, nhưng vẫn cần year để query.
+        // Mình dùng year hiện tại theo anchorDateIso (thường là năm hiện tại).
+        val newAnchor = LocalDate(current.year, m, 1)
+        loadMonth(newAnchor)
     }
 
     private fun computeMonthRange(anchor: LocalDate): Pair<String, String> {
@@ -70,8 +116,7 @@ class SummaryViewModel(
         return first.toString() to last.toString()
     }
 
-    private fun parseIsoOrToday(iso: String): LocalDate {
-        return runCatching { LocalDate.parse(iso) }
-            .getOrElse { LocalDate(2026, 1, 1) } // fallback (bạn có thể đổi thành today nếu muốn)
-    }
+    private fun parseIsoOrToday(iso: String): LocalDate =
+        runCatching { LocalDate.parse(iso) }
+            .getOrElse { Clock.System.todayIn(tz) }
 }

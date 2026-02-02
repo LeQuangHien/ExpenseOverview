@@ -1,4 +1,4 @@
-package com.hien.le.expenseoverview.ui.screens
+package com.hien.le.expenseoverview.presentation.summary
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -6,8 +6,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.hien.le.expenseoverview.presentation.summary.SummaryAction
-import com.hien.le.expenseoverview.presentation.summary.SummaryViewModel
 import com.hien.le.expenseoverview.ui.components.DateQuickPicker
 import com.hien.le.expenseoverview.ui.components.SummaryTable
 import kotlin.time.Clock
@@ -18,11 +16,12 @@ import kotlinx.datetime.todayIn
 fun SummaryScreen(vm: SummaryViewModel) {
     val state by vm.state.collectAsState()
 
-    // Default: tháng hiện tại
     val todayIso = remember { Clock.System.todayIn(TimeZone.currentSystemDefault()).toString() }
+
+    // default load: current month
     LaunchedEffect(Unit) {
-        if (state.anchorDateIso.isBlank() || state.anchorDateIso == "1970-01-01") {
-            vm.dispatch(SummaryAction.LoadMonth(anchorDateIso = todayIso))
+        if (state.anchorDateIso.isBlank()) {
+            vm.dispatch(SummaryAction.SelectCurrentMonth)
         }
     }
 
@@ -32,31 +31,37 @@ fun SummaryScreen(vm: SummaryViewModel) {
     ) {
         Text("Tổng kết", style = MaterialTheme.typography.headlineSmall)
 
-        // Hôm nay/Hôm qua/Chọn ngày -> load theo tháng của ngày đó
+        // ✅ DateQuickPicker = DAY mode actions
         DateQuickPicker(
             selectedDateIso = state.anchorDateIso.ifBlank { todayIso },
-            onSelectDateIso = { iso -> vm.dispatch(SummaryAction.LoadMonth(anchorDateIso = iso)) }
+            onSelectDateIso = { iso ->
+                vm.dispatch(SummaryAction.SelectDay(iso))
+            }
         )
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // ✅ Nút Tháng: bấm vào -> tháng hiện tại
-            Button(onClick = { vm.dispatch(SummaryAction.LoadMonth(anchorDateIso = todayIso)) }) {
+            // ✅ Month mode button
+            Button(onClick = { vm.dispatch(SummaryAction.SelectCurrentMonth) }) {
                 Text("Tháng")
             }
 
             Spacer(Modifier.weight(1f))
 
-            // ✅ Dropdown chọn tháng 1..12 (không cần năm)
+            // ✅ Dropdown month (forces MONTH mode)
             MonthDropdown(
                 selectedMonthNumber = state.selectedMonthNumber,
-                onMonthSelected = { month ->
-                    vm.dispatch(SummaryAction.ChangeMonth(month))
-                }
+                onMonthSelected = { m -> vm.dispatch(SummaryAction.SelectMonth(m)) }
             )
         }
+
+        // Optional: show mode so user understands
+        AssistChip(
+            onClick = {},
+            label = { Text(if (state.mode == SummaryMode.DAY) "Đang xem: 1 ngày" else "Đang xem: 1 tháng") }
+        )
 
         if (state.isLoading) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -65,20 +70,15 @@ fun SummaryScreen(vm: SummaryViewModel) {
         val summary = state.summary
         if (summary == null) {
             Text("Chưa có dữ liệu.")
-            if (state.errorMessage != null) {
-                Text(state.errorMessage!!, color = MaterialTheme.colorScheme.error)
+        } else {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val sticky = maxWidth >= 600.dp && state.mode == SummaryMode.MONTH
+                SummaryTable(
+                    rows = summary.rows,
+                    stickyHeaderEnabled = sticky,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
-            return
-        }
-
-        // Table (sticky header trên tablet)
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val sticky = maxWidth >= 600.dp
-            SummaryTable(
-                rows = summary.rows,
-                stickyHeaderEnabled = sticky,
-                modifier = Modifier.fillMaxSize()
-            )
         }
 
         if (state.errorMessage != null) {

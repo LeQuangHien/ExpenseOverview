@@ -1,27 +1,31 @@
 package com.hien.le.expenseoverview.presentation.summary
 
 import com.hien.le.expenseoverview.domain.model.Summary
-import com.hien.le.expenseoverview.domain.model.SummaryRange
+
+enum class SummaryMode { DAY, MONTH }
 
 data class SummaryState(
+    val mode: SummaryMode = SummaryMode.MONTH,
+
+    // Anchor date the user picked (for DAY) or inside selected month (for MONTH)
+    val anchorDateIso: String = "",
+
+    // month dropdown
+    val selectedMonthNumber: Int = 1,
+
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
 
-    val range: SummaryRange = SummaryRange.MONTH,
-    val anchorDateIso: String = "1970-01-01",
-
-    // để dropdown hiển thị tháng đang chọn (1..12)
-    val selectedMonthNumber: Int = 1,
-
-    val summary: com.hien.le.expenseoverview.domain.model.Summary? = null
+    val summary: Summary? = null
 )
 
 sealed interface SummaryAction {
-    data class LoadMonth(val anchorDateIso: String) : SummaryAction
-    data class ChangeMonth(val monthNumber: Int) : SummaryAction
-    data object ClearError : SummaryAction
-}
+    // DAY mode (one specific date)
+    data class SelectDay(val dateIso: String) : SummaryAction
 
-sealed interface SummaryEffect {
-    data class Toast(val message: String) : SummaryEffect
+    // MONTH mode
+    data object SelectCurrentMonth : SummaryAction
+    data class SelectMonth(val monthNumber: Int) : SummaryAction
+
+    data object ClearError : SummaryAction
 }

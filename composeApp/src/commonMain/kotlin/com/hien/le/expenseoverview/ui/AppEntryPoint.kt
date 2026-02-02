@@ -3,12 +3,12 @@ package com.hien.le.expenseoverview.ui
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hien.le.expenseoverview.AppContainer
+import com.hien.le.expenseoverview.presentation.audit.AuditLogScreen
 import com.hien.le.expenseoverview.presentation.audit.AuditLogViewModel
 import com.hien.le.expenseoverview.presentation.entry.EntryViewModel
 import com.hien.le.expenseoverview.presentation.summary.SummaryViewModel
-import com.hien.le.expenseoverview.ui.screens.AuditLogScreen
-import com.hien.le.expenseoverview.ui.screens.EntryScreen
-import com.hien.le.expenseoverview.ui.screens.SummaryScreen
+import com.hien.le.expenseoverview.presentation.entry.EntryScreen
+import com.hien.le.expenseoverview.presentation.summary.SummaryScreen
 
 @Composable
 fun AppEntryPoint(container: AppContainer) {

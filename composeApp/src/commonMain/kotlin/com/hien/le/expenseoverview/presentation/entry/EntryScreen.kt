@@ -1,4 +1,4 @@
-package com.hien.le.expenseoverview.ui.screens
+package com.hien.le.expenseoverview.presentation.entry
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,10 +10,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import com.hien.le.expenseoverview.presentation.common.MoneyFormatter
-import com.hien.le.expenseoverview.presentation.entry.EntryAction
-import com.hien.le.expenseoverview.presentation.entry.EntryEffect
-import com.hien.le.expenseoverview.presentation.entry.EntryViewModel
-import com.hien.le.expenseoverview.presentation.entry.VendorPreset
 import com.hien.le.expenseoverview.ui.components.DateQuickPicker
 import com.hien.le.expenseoverview.ui.components.MoneyKeypadInput
 import com.hien.le.expenseoverview.ui.components.VendorDropdown
