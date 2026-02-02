@@ -8,6 +8,8 @@ import com.hien.le.expenseoverview.domain.model.AuditEvent
 import com.hien.le.expenseoverview.domain.model.AuditFields
 import com.hien.le.expenseoverview.domain.repository.AuditRepository
 import com.hien.le.expenseoverview.presentation.common.Utils.generateUuid
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 import kotlin.time.Clock
 
 class SaveDailyEntryWithExpensesUseCase(
@@ -28,6 +30,9 @@ class SaveDailyEntryWithExpensesUseCase(
         val auditComment: String? = null
     )
 
+    @OptIn(ExperimentalUuidApi::class)
+    private fun newAuditId(): String = Uuid.random().toString()
+
     @Transaction
     suspend fun execute(input: Input) {
         val dateIso = input.dateIso
@@ -39,58 +44,63 @@ class SaveDailyEntryWithExpensesUseCase(
         val oldKarte = oldEntry?.karteCents ?: 0L
         val oldExpenseTotal = dao.sumExpenseCentsByDate(dateIso)
 
+        // ✅ first save detection: ngày chưa từng có entry trong DB
+        // (giữ thêm oldExpenseTotal == 0 để chắc chắn không phải case data lệch)
+        val isFirstSave = (oldEntry == null && oldExpenseTotal == 0L)
+
         // --- NEW values (from UI draft) ---
         val newBargeld = input.bargeldCents
         val newKarte = input.karteCents
         val newExpenseTotal = input.expenses.sumOf { it.amountCents }
 
-        // --- AUDIT: log only changed fields ---
-        if (oldBargeld != newBargeld) {
-            auditRepository.insert(
-                AuditEvent(
-                    id = generateUuid(),
-                    entityDateIso = dateIso,
-                    field = AuditFields.BARGELD,
-                    oldValue = oldBargeld.toString(),
-                    newValue = newBargeld.toString(),
-                    editedAt = now,
-                    comment = input.auditComment
+        // ✅ AUDIT: chỉ log khi KHÔNG phải lần đầu
+        if (!isFirstSave) {
+            if (oldBargeld != newBargeld) {
+                auditRepository.insert(
+                    AuditEvent(
+                        id = newAuditId(),
+                        entityDateIso = dateIso,
+                        field = AuditFields.BARGELD,
+                        oldValue = oldBargeld.toString(),
+                        newValue = newBargeld.toString(),
+                        editedAt = now,
+                        comment = input.auditComment
+                    )
                 )
-            )
-        }
+            }
 
-        if (oldKarte != newKarte) {
-            auditRepository.insert(
-                AuditEvent(
-                    id = generateUuid(),
-                    entityDateIso = dateIso,
-                    field = AuditFields.KARTE,
-                    oldValue = oldKarte.toString(),
-                    newValue = newKarte.toString(),
-                    editedAt = now,
-                    comment = input.auditComment
+            if (oldKarte != newKarte) {
+                auditRepository.insert(
+                    AuditEvent(
+                        id = newAuditId(),
+                        entityDateIso = dateIso,
+                        field = AuditFields.KARTE,
+                        oldValue = oldKarte.toString(),
+                        newValue = newKarte.toString(),
+                        editedAt = now,
+                        comment = input.auditComment
+                    )
                 )
-            )
-        }
+            }
 
-// ✅ Expense: log tổng chi tiêu cũ -> mới
-        if (oldExpenseTotal != newExpenseTotal) {
-            auditRepository.insert(
-                AuditEvent(
-                    id = generateUuid(),
-                    entityDateIso = dateIso,
-                    field = AuditFields.EXPENSE_TOTAL,
-                    oldValue = oldExpenseTotal.toString(),
-                    newValue = newExpenseTotal.toString(),
-                    editedAt = now,
-                    comment = input.auditComment
+            // Expense: log tổng chi tiêu cũ -> mới
+            if (oldExpenseTotal != newExpenseTotal) {
+                auditRepository.insert(
+                    AuditEvent(
+                        id = newAuditId(),
+                        entityDateIso = dateIso,
+                        field = AuditFields.EXPENSE_TOTAL,
+                        oldValue = oldExpenseTotal.toString(),
+                        newValue = newExpenseTotal.toString(),
+                        editedAt = now,
+                        comment = input.auditComment
+                    )
                 )
-            )
+            }
         }
 
         // --- Upsert daily entry ---
         val createdAt = oldEntry?.createdAt ?: now
-
         dao.upsertEntry(
             DailyEntryEntity(
                 dateIso = dateIso,
@@ -107,7 +117,7 @@ class SaveDailyEntryWithExpensesUseCase(
         input.expenses.forEach { e ->
             dao.upsertExpenseItem(
                 ExpenseItemEntity(
-                    id = generateUuid(),
+                    id = generateUuid(), // (androidMain ok; nếu bạn muốn KMP thuần, đổi sang Utils.generateUuid)
                     dateIso = dateIso,
                     vendorName = e.vendorName,
                     amountCents = e.amountCents,
