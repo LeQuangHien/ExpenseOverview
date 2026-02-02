@@ -20,7 +20,8 @@ fun entryViewModelFactory(container: AppContainer) = viewModelFactory {
 fun summaryViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer {
         SummaryViewModel(
-            getSummary = container.getSummary,
+            repo = container.summaryRepo,
+            pdfExporter = container.monthPdfExporter,
             dispatchers = container.dispatchers
         )
     }

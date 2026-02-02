@@ -2,30 +2,40 @@ package com.hien.le.expenseoverview.presentation.summary
 
 import com.hien.le.expenseoverview.domain.model.Summary
 
+data class SummaryRowUi(
+    val dateIso: String,
+    val bargeldCents: Long,
+    val karteCents: Long,
+    val expenseCents: Long,
+    val netCents: Long
+)
+
 enum class SummaryMode { DAY, MONTH }
 
 data class SummaryState(
     val mode: SummaryMode = SummaryMode.MONTH,
-
-    // Anchor date the user picked (for DAY) or inside selected month (for MONTH)
     val anchorDateIso: String = "",
-
-    // month dropdown
     val selectedMonthNumber: Int = 1,
 
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
 
-    val summary: Summary? = null
+    val rows: List<SummaryRowUi> = emptyList(),
+
+    // export
+    val isExporting: Boolean = false,
+    val exportResultMessage: String? = null,
+    val exportPath: String? = null
 )
 
 sealed interface SummaryAction {
-    // DAY mode (one specific date)
     data class SelectDay(val dateIso: String) : SummaryAction
 
-    // MONTH mode
     data object SelectCurrentMonth : SummaryAction
     data class SelectMonth(val monthNumber: Int) : SummaryAction
+
+    data object ExportMonthPdf : SummaryAction
+    data object ClearExportMessage : SummaryAction
 
     data object ClearError : SummaryAction
 }

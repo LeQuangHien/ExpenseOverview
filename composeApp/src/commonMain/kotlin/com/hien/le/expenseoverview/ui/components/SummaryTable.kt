@@ -3,42 +3,43 @@ package com.hien.le.expenseoverview.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.hien.le.expenseoverview.domain.model.SummaryRow
 import com.hien.le.expenseoverview.presentation.common.MoneyFormatter
+import com.hien.le.expenseoverview.presentation.summary.SummaryRowUi
 
 @Composable
 fun SummaryTable(
-    rows: List<SummaryRow>,
+    rows: List<SummaryRowUi>,
     stickyHeaderEnabled: Boolean,
     modifier: Modifier = Modifier
 ) {
-    var expandedDate by remember { mutableStateOf<String?>(null) }
-
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        if (stickyHeaderEnabled) {
-            stickyHeader { HeaderRow() }
-        } else {
-            item { HeaderRow() }
-        }
-
-        itemsIndexed(rows) { _, r ->
-            DayRow(
-                row = r,
-                expanded = expandedDate == r.dateIso,
-                onToggle = {
-                    expandedDate = if (expandedDate == r.dateIso) null else r.dateIso
+    Card(modifier = modifier) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (stickyHeaderEnabled) {
+                stickyHeader {
+                    HeaderRow()
+                    Divider()
                 }
-            )
-            Divider()
+            } else {
+                item {
+                    HeaderRow()
+                    Divider()
+                }
+            }
+
+            items(rows, key = { it.dateIso }) { r ->
+                DataRow(r)
+                Divider()
+            }
         }
     }
 }
@@ -58,6 +59,27 @@ private fun HeaderRow() {
         HeaderCell("Net", 1f)
     }
     Divider()
+}
+
+
+@Composable
+private fun DataRow(r: SummaryRowUi) {
+    Row(Modifier.fillMaxWidth()) {
+        Cell(r.dateIso, Modifier.weight(1.2f))
+        Cell(MoneyFormatter.centsToDeEuro(r.bargeldCents), Modifier.weight(1f))
+        Cell(MoneyFormatter.centsToDeEuro(r.karteCents), Modifier.weight(1f))
+        Cell(MoneyFormatter.centsToDeEuro(r.expenseCents), Modifier.weight(1f))
+        Cell(MoneyFormatter.centsToDeEuro(r.netCents), Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun Cell(text: String, modifier: Modifier, isHeader: Boolean = false) {
+    Text(
+        text = text,
+        modifier = modifier.padding(vertical = 6.dp, horizontal = 4.dp),
+        style = if (isHeader) MaterialTheme.typography.labelLarge else MaterialTheme.typography.bodyMedium
+    )
 }
 
 @Composable
