@@ -8,7 +8,7 @@ import com.hien.le.expenseoverview.presentation.entry.EntryViewModel
 import com.hien.le.expenseoverview.presentation.summary.SummaryViewModel
 import com.hien.le.expenseoverview.presentation.entry.EntryScreen
 import com.hien.le.expenseoverview.ui.screens.AuditLogScreen
-import com.hien.le.expenseoverview.ui.screens.SummaryScreen
+import com.hien.le.expenseoverview.presentation.summary.SummaryScreen
 
 @Composable
 fun AppEntryPoint(container: AppContainer) {

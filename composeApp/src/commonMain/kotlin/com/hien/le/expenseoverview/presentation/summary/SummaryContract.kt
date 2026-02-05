@@ -1,6 +1,6 @@
 package com.hien.le.expenseoverview.presentation.summary
 
-import com.hien.le.expenseoverview.domain.model.Summary
+import com.hien.le.expenseoverview.export.ReceiptLine
 
 data class SummaryRowUi(
     val dateIso: String,
@@ -16,6 +16,7 @@ data class SummaryState(
     val mode: SummaryMode = SummaryMode.MONTH,
     val anchorDateIso: String = "",
     val selectedMonthNumber: Int = 1,
+    val receipts: List<ReceiptLine> = emptyList(),
 
     val isLoading: Boolean = false,
     val errorMessage: String? = null,

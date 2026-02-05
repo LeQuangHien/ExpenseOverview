@@ -4,18 +4,20 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hien.le.expenseoverview.domain.repository.SummaryRepository
 import com.hien.le.expenseoverview.export.MonthPdfExporter
-import com.hien.le.expenseoverview.export.ReceiptLine
 import com.hien.le.expenseoverview.presentation.common.CoroutineDispatchers
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.time.Clock
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 class SummaryViewModel(
     private val repo: SummaryRepository,
@@ -31,7 +33,8 @@ class SummaryViewModel(
             SummaryState(
                 mode = SummaryMode.MONTH,
                 anchorDateIso = today.toString(),
-                selectedMonthNumber = today.monthNumber
+                selectedMonthNumber = today.monthNumber,
+                receipts = emptyList() // ✅ ensure typed
             )
         }
     )
@@ -48,7 +51,8 @@ class SummaryViewModel(
             is SummaryAction.SelectMonth -> changeMonth(action.monthNumber)
 
             SummaryAction.ExportMonthPdf -> exportMonthPdf()
-            SummaryAction.ClearExportMessage -> _state.update { it.copy(exportResultMessage = null, exportPath = null, isExporting = false) }
+            SummaryAction.ClearExportMessage ->
+                _state.update { it.copy(exportResultMessage = null, exportPath = null, isExporting = false) }
 
             SummaryAction.ClearError -> _state.update { it.copy(errorMessage = null) }
         }
@@ -60,27 +64,84 @@ class SummaryViewModel(
         val toIso = date.toString()
 
         viewModelScope.launch {
-            _state.update { it.copy(mode = SummaryMode.DAY, isLoading = true, errorMessage = null, anchorDateIso = fromIso, selectedMonthNumber = date.monthNumber) }
+            _state.update {
+                it.copy(
+                    mode = SummaryMode.DAY,
+                    isLoading = true,
+                    errorMessage = null,
+                    anchorDateIso = fromIso,
+                    selectedMonthNumber = date.monthNumber,
+                    rows = emptyList(),
+                    receipts = emptyList()
+                )
+            }
+
             runCatching {
-                withContext(dispatchers.io) { repo.getSummaryRows(fromIso, toIso) }
-            }.onSuccess { rows ->
-                _state.update { it.copy(isLoading = false, rows = rows) }
+                withContext(dispatchers.io) {
+                    val rows = repo.getSummaryRows(fromIso, toIso)
+                    val receipts = repo.getReceiptsInRange(fromIso, toIso)
+                    rows to receipts
+                }
+            }.onSuccess { (rows, receipts) ->
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        rows = rows,
+                        receipts = receipts
+                    )
+                }
             }.onFailure { ex ->
-                _state.update { it.copy(isLoading = false, errorMessage = ex.message ?: "Load failed") }
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = ex.message ?: "Load failed",
+                        rows = emptyList(),
+                        receipts = emptyList()
+                    )
+                }
             }
         }
     }
 
     private fun loadMonth(anchor: LocalDate) {
         val (fromIso, toIso) = computeMonthRange(anchor)
+
         viewModelScope.launch {
-            _state.update { it.copy(mode = SummaryMode.MONTH, isLoading = true, errorMessage = null, anchorDateIso = anchor.toString(), selectedMonthNumber = anchor.monthNumber) }
+            _state.update {
+                it.copy(
+                    mode = SummaryMode.MONTH,
+                    isLoading = true,
+                    errorMessage = null,
+                    anchorDateIso = anchor.toString(),
+                    selectedMonthNumber = anchor.monthNumber,
+                    rows = emptyList(),
+                    receipts = emptyList()
+                )
+            }
+
             runCatching {
-                withContext(dispatchers.io) { repo.getSummaryRows(fromIso, toIso) }
-            }.onSuccess { rows ->
-                _state.update { it.copy(isLoading = false, rows = rows) }
+                withContext(dispatchers.io) {
+                    val rows = repo.getSummaryRows(fromIso, toIso)
+                    val receipts = repo.getReceiptsInRange(fromIso, toIso)
+                    rows to receipts
+                }
+            }.onSuccess { (rows, receipts) ->
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        rows = rows,
+                        receipts = receipts
+                    )
+                }
             }.onFailure { ex ->
-                _state.update { it.copy(isLoading = false, errorMessage = ex.message ?: "Load failed") }
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = ex.message ?: "Load failed",
+                        rows = emptyList(),
+                        receipts = emptyList()
+                    )
+                }
             }
         }
     }
@@ -107,8 +168,10 @@ class SummaryViewModel(
 
             runCatching {
                 withContext(dispatchers.io) {
-                    val rows = repo.getSummaryRows(fromIso, toIso)
-                    val receipts = repo.getReceiptsInRange(fromIso, toIso)
+                    // ✅ dùng data hiện tại nếu đã load sẵn; nếu trống thì query lại
+                    val rows = if (s.rows.isNotEmpty()) s.rows else repo.getSummaryRows(fromIso, toIso)
+                    val receipts = if (s.receipts.isNotEmpty()) s.receipts else repo.getReceiptsInRange(fromIso, toIso)
+
                     pdfExporter.exportMonthPdf(
                         monthLabel = monthLabel,
                         fromDateIso = fromIso,
