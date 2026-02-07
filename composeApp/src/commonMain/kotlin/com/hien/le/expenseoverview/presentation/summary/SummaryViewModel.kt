@@ -15,6 +15,7 @@ import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
+import kotlinx.datetime.number
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
@@ -26,6 +27,23 @@ class SummaryViewModel(
 ) : ViewModel() {
 
     private val tz = TimeZone.currentSystemDefault()
+    private val germanMonths = listOf(
+        "Januar",
+        "Februar",
+        "März",
+        "April",
+        "Mai",
+        "Juni",
+        "Juli",
+        "August",
+        "September",
+        "Oktober",
+        "November",
+        "Dezember"
+    )
+
+    private fun germanMonthName(monthNumber: Int): String =
+        germanMonths.getOrNull(monthNumber - 1) ?: ""
 
     private val _state = MutableStateFlow(
         run {
@@ -161,7 +179,7 @@ class SummaryViewModel(
 
         val anchor = parseIsoOrToday(s.anchorDateIso)
         val (fromIso, toIso) = computeMonthRange(anchor)
-        val monthLabel = "Tháng ${anchor.monthNumber}"
+        val monthLabel = "${germanMonthName(anchor.month.number)} ${anchor.year}"
 
         viewModelScope.launch {
             _state.update { it.copy(isExporting = true, exportResultMessage = null, exportPath = null) }
@@ -169,8 +187,8 @@ class SummaryViewModel(
             runCatching {
                 withContext(dispatchers.io) {
                     // ✅ dùng data hiện tại nếu đã load sẵn; nếu trống thì query lại
-                    val rows = if (s.rows.isNotEmpty()) s.rows else repo.getSummaryRows(fromIso, toIso)
-                    val receipts = if (s.receipts.isNotEmpty()) s.receipts else repo.getReceiptsInRange(fromIso, toIso)
+                    val rows = s.rows.ifEmpty { repo.getSummaryRows(fromIso, toIso) }
+                    val receipts = s.receipts.ifEmpty { repo.getReceiptsInRange(fromIso, toIso) }
 
                     pdfExporter.exportMonthPdf(
                         monthLabel = monthLabel,

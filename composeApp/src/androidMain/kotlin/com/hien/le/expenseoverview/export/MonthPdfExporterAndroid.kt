@@ -29,6 +29,9 @@ class MonthPdfExporterAndroid(
         val margin = 36
         var y = margin
 
+        // ✅ manual page counter (PdfDocument has NO pageCount)
+        var pageNo = 1
+
         val titlePaint = Paint().apply {
             isAntiAlias = true
             textSize = 16f
@@ -49,11 +52,17 @@ class MonthPdfExporterAndroid(
             textSize = 10f
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
         }
+        val totalPaint = Paint().apply {
+            isAntiAlias = true
+            textSize = 11f
+            typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+        }
 
-        fun newPage(pageNo: Int): PdfDocument.Page {
+        fun newPage(): PdfDocument.Page {
             val info = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNo).create()
             val page = doc.startPage(info)
             y = margin
+            pageNo++
             return page
         }
 
@@ -61,33 +70,56 @@ class MonthPdfExporterAndroid(
             val needed = lines * 14
             return if (y + needed > pageHeight - margin) {
                 doc.finishPage(currentPage)
-                newPage( 1)
+                newPage()
             } else currentPage
         }
 
-        var page = newPage(1)
+        var page = newPage()
 
-        // Title
-        page.canvas.drawText("Kassenabrechnung $monthLabel", margin.toFloat(), y.toFloat(), titlePaint)
+        // ===== TITLE =====
+        page.canvas.drawText(
+            "Kassenabrechnung $monthLabel",
+            margin.toFloat(),
+            y.toFloat(),
+            titlePaint
+        )
         y += 22
-        page.canvas.drawText("Zeitraum: $fromDateIso → $toDateIso", margin.toFloat(), y.toFloat(), smallPaint)
+
+        page.canvas.drawText(
+            "Zeitraum: $fromDateIso → $toDateIso",
+            margin.toFloat(),
+            y.toFloat(),
+            smallPaint
+        )
         y += 18
 
-        // Table header
+        // ===== TABLE HEADER =====
         page = ensureSpace(page, 2)
         page.canvas.drawText(
             "DATE       | BARGELD     | KARTE       | EXPENSE     | NET",
-            margin.toFloat(), y.toFloat(), headerPaint
+            margin.toFloat(),
+            y.toFloat(),
+            headerPaint
         )
         y += 14
+
         page.canvas.drawText(
             "-----------+-------------+-------------+-------------+------------",
-            margin.toFloat(), y.toFloat(), headerPaint
+            margin.toFloat(),
+            y.toFloat(),
+            headerPaint
         )
         y += 16
 
         val receiptsByDate = receipts.groupBy { it.dateIso }
 
+        // ===== TOTAL CALC =====
+        val totalBargeld = rows.sumOf { it.bargeldCents }
+        val totalKarte = rows.sumOf { it.karteCents }
+        val totalExpense = rows.sumOf { it.expenseCents }
+        val totalNet = rows.sumOf { it.netCents }
+
+        // ===== ROWS =====
         rows.forEach { r ->
             page = ensureSpace(page, 2)
 
@@ -102,6 +134,7 @@ class MonthPdfExporterAndroid(
                 append(" | ")
                 append(MoneyFormatter.centsToDeEuro(r.netCents))
             }
+
             page.canvas.drawText(line, margin.toFloat(), y.toFloat(), textPaint)
             y += 16
 
@@ -109,7 +142,8 @@ class MonthPdfExporterAndroid(
             if (list.isNotEmpty()) {
                 list.forEach { rec ->
                     page = ensureSpace(page, 1)
-                    val recLine = "  • ${rec.vendorName} — ${MoneyFormatter.centsToDeEuro(rec.amountCents)}"
+                    val recLine =
+                        "  • ${rec.vendorName} — ${MoneyFormatter.centsToDeEuro(rec.amountCents)}"
                     page.canvas.drawText(recLine, margin.toFloat(), y.toFloat(), smallPaint)
                     y += 14
                 }
@@ -117,9 +151,35 @@ class MonthPdfExporterAndroid(
             }
         }
 
+        // ===== TOTAL ROW =====
+        page = ensureSpace(page, 3)
+
+        page.canvas.drawText(
+            "-----------+-------------+-------------+-------------+------------",
+            margin.toFloat(),
+            y.toFloat(),
+            headerPaint
+        )
+        y += 16
+
+        val totalLine = buildString {
+            append("TOTAL".padEnd(10))
+            append(" | ")
+            append(MoneyFormatter.centsToDeEuro(totalBargeld).padEnd(11))
+            append(" | ")
+            append(MoneyFormatter.centsToDeEuro(totalKarte).padEnd(11))
+            append(" | ")
+            append(MoneyFormatter.centsToDeEuro(totalExpense).padEnd(11))
+            append(" | ")
+            append(MoneyFormatter.centsToDeEuro(totalNet))
+        }
+
+        page.canvas.drawText(totalLine, margin.toFloat(), y.toFloat(), totalPaint)
+        y += 16
+
         doc.finishPage(page)
 
-        // ✅ Save via MediaStore -> Documents/ExpenseOverview/
+        // ===== SAVE VIA MEDIASTORE =====
         val fileName = "summary_${fromDateIso}_to_${toDateIso}.pdf"
         val mime = "application/pdf"
 
@@ -152,7 +212,7 @@ class MonthPdfExporterAndroid(
             resolver.update(uri, values, null, null)
         }
 
-        // Trả về uri string để bạn show cho user / share
+        // return URI string for UI / share
         return uri.toString()
     }
 }
