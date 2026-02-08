@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.hien.le.expenseoverview.presentation.common.MoneyFormatter
 import com.hien.le.expenseoverview.presentation.common.MoneyInput
@@ -14,6 +15,7 @@ fun MoneyKeypadInput(
     text: String,
     onTextChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    keyColor: Color = MaterialTheme.colorScheme.primary // ✅ NEW
 ) {
     val cents = remember(text) { MoneyInput.parseToCents(text) ?: 0L }
     val formatted = remember(cents) { MoneyFormatter.centsToDeEuro(cents) }
@@ -29,6 +31,7 @@ fun MoneyKeypadInput(
         )
 
         MoneyKeypad(
+            keyColor = keyColor, // ✅ pass down
             onDigit = { d -> onTextChange(appendDigit(text, d)) },
             onComma = { onTextChange(appendComma(text)) },
             onBackspace = { onTextChange(backspace(text)) },
@@ -39,6 +42,7 @@ fun MoneyKeypadInput(
 
 @Composable
 private fun MoneyKeypad(
+    keyColor: Color, // ✅ NEW
     onDigit: (Char) -> Unit,
     onComma: () -> Unit,
     onBackspace: () -> Unit,
@@ -46,34 +50,53 @@ private fun MoneyKeypad(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Key("1") { onDigit('1') }
-            Key("2") { onDigit('2') }
-            Key("3") { onDigit('3') }
+            Key("1", keyColor) { onDigit('1') }
+            Key("2", keyColor) { onDigit('2') }
+            Key("3", keyColor) { onDigit('3') }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Key("4") { onDigit('4') }
-            Key("5") { onDigit('5') }
-            Key("6") { onDigit('6') }
+            Key("4", keyColor) { onDigit('4') }
+            Key("5", keyColor) { onDigit('5') }
+            Key("6", keyColor) { onDigit('6') }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Key("7") { onDigit('7') }
-            Key("8") { onDigit('8') }
-            Key("9") { onDigit('9') }
+            Key("7", keyColor) { onDigit('7') }
+            Key("8", keyColor) { onDigit('8') }
+            Key("9", keyColor) { onDigit('9') }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Key(",") { onComma() }
-            Key("0") { onDigit('0') }
-            Key("⌫") { onBackspace() }
+            Key(",", keyColor) { onComma() }
+            Key("0", keyColor) { onDigit('0') }
+            Key("⌫", keyColor) { onBackspace() }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onClear, modifier = Modifier.fillMaxWidth()) { Text("Clear") }
+            OutlinedButton(
+                onClick = onClear,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = keyColor
+                )
+            ) {
+                Text("Xóa")
+            }
         }
     }
 }
 
 @Composable
-private fun RowScope.Key(label: String, onClick: () -> Unit) {
-    Button(onClick = onClick, modifier = Modifier.weight(1f)) {
+private fun RowScope.Key(
+    label: String,
+    keyColor: Color,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.weight(1f),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = keyColor,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        )
+    ) {
         Text(label)
     }
 }

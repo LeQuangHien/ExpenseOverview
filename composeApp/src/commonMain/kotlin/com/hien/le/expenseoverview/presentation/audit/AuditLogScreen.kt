@@ -34,13 +34,13 @@ fun AuditLogScreen(vm: AuditLogViewModel) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Log", style = MaterialTheme.typography.headlineSmall)
+            Text("Lịch sử", style = MaterialTheme.typography.headlineSmall)
 
             TextButton(
                 onClick = { vm.refresh() },
                 enabled = !state.isLoading
             ) {
-                Text("Refresh")
+                Text("Tải lại")
             }
         }
 
@@ -74,10 +74,10 @@ fun AuditLogScreen(vm: AuditLogViewModel) {
                     list.sortedByDescending { it.editedAt }.forEach { e ->
                         val line = when (e.field) {
                             AuditFields.BARGELD ->
-                                "Bargeld: ${MoneyFormatter.centsToDeEuro(e.oldValue.toLong())} → ${MoneyFormatter.centsToDeEuro(e.newValue.toLong())}"
+                                "Tiền mặt: ${MoneyFormatter.centsToDeEuro(e.oldValue.toLong())} → ${MoneyFormatter.centsToDeEuro(e.newValue.toLong())}"
 
                             AuditFields.KARTE ->
-                                "Karte: ${MoneyFormatter.centsToDeEuro(e.oldValue.toLong())} → ${MoneyFormatter.centsToDeEuro(e.newValue.toLong())}"
+                                "Thẻ: ${MoneyFormatter.centsToDeEuro(e.oldValue.toLong())} → ${MoneyFormatter.centsToDeEuro(e.newValue.toLong())}"
 
                             AuditFields.EXPENSE_TOTAL ->
                                 "Chi tiêu (tổng): ${MoneyFormatter.centsToDeEuro(e.oldValue.toLong())} → ${MoneyFormatter.centsToDeEuro(e.newValue.toLong())}"

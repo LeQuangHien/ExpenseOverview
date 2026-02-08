@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.dp
 enum class AppTab(val label: String) {
     ENTRY("Nhập số"),
     SUMMARY("Tổng kết"),
-    AUDIT("Log")
+    AUDIT("Lịch sử")
 }
 
 @Composable

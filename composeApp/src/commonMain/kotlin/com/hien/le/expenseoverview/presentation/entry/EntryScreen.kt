@@ -23,7 +23,7 @@ fun EntryScreen(vm: EntryViewModel) {
     val state by vm.state.collectAsState()
     val scroll = rememberScrollState()
 
-    // Default today on first open
+    // Mặc định là hôm nay khi mở lần đầu
     val todayIso = remember { Clock.System.todayIn(TimeZone.currentSystemDefault()).toString() }
     LaunchedEffect(Unit) {
         if (state.dateIso.isBlank() || state.dateIso == "1970-01-01") {
@@ -31,26 +31,26 @@ fun EntryScreen(vm: EntryViewModel) {
         }
     }
 
-    // Focus Bargeld after save success
-    val bargeldFocus = remember { FocusRequester() }
-    var pendingFocusBargeld by remember { mutableStateOf(false) }
+    // Focus lại ô "Tiền mặt" sau khi lưu thành công
+    val cashFocus = remember { FocusRequester() }
+    var pendingFocusCash by remember { mutableStateOf(false) }
 
     // Dialog state
     var showErrorDialog by remember { mutableStateOf(false) }
     var showSuccessDialog by remember { mutableStateOf(false) }
 
-    // Error dialog triggers when errorMessage becomes non-null
+    // Khi có lỗi -> mở dialog
     LaunchedEffect(state.errorMessage) {
         if (state.errorMessage != null) showErrorDialog = true
     }
 
-    // Listen to effects: Save success -> show dialog, then focus after OK
+    // Lắng nghe effect: lưu thành công -> dialog + focus lại
     LaunchedEffect(vm) {
         vm.effects.collectLatest { eff ->
             when (eff) {
                 EntryEffect.SaveSuccess -> {
                     showSuccessDialog = true
-                    pendingFocusBargeld = true
+                    pendingFocusCash = true
                 }
             }
         }
@@ -72,23 +72,22 @@ fun EntryScreen(vm: EntryViewModel) {
 
     if (showSuccessDialog) {
         AlertDialog(
-            onDismissRequest = { /* force user tap OK */ },
+            onDismissRequest = { /* bắt buộc bấm OK */ },
             title = { Text("Thành công") },
             text = { Text("Đã lưu thành công.") },
             confirmButton = {
                 TextButton(onClick = {
                     showSuccessDialog = false
-                    // ✅ focus lại Bargeld sau khi đóng dialog
-                    if (pendingFocusBargeld) {
-                        pendingFocusBargeld = false
-                        bargeldFocus.requestFocus()
+                    if (pendingFocusCash) {
+                        pendingFocusCash = false
+                        cashFocus.requestFocus()
                     }
                 }) { Text("OK") }
             }
         )
     }
 
-    // Save enabled: BOTH fields filled + state.canSave + !loading
+    // Nút lưu chỉ bật khi cả 2 ô đã nhập + hợp lệ
     val saveEnabled = remember(state.bargeldText, state.karteText, state.canSave, state.isLoading) {
         state.bargeldText.trim().isNotEmpty() &&
                 state.karteText.trim().isNotEmpty() &&
@@ -102,7 +101,7 @@ fun EntryScreen(vm: EntryViewModel) {
             .verticalScroll(scroll),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Nhập số", style = MaterialTheme.typography.headlineSmall)
+        Text("Nhập liệu trong ngày", style = MaterialTheme.typography.headlineSmall)
 
         DateQuickPicker(
             selectedDateIso = state.dateIso,
@@ -110,28 +109,20 @@ fun EntryScreen(vm: EntryViewModel) {
         )
 
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            // ✅ auto focus target
+            // Tiền mặt – xanh lá
             MoneyKeypadInput(
-                label = "Bargeld",
+                label = "Tiền mặt",
                 text = state.bargeldText,
                 onTextChange = { vm.dispatch(EntryAction.EditBargeld(it)) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(bargeldFocus)
+                keyColor = MaterialTheme.colorScheme.secondary
             )
 
+            // Thẻ – xanh dương
             MoneyKeypadInput(
-                label = "Karte",
+                label = "Thẻ",
                 text = state.karteText,
                 onTextChange = { vm.dispatch(EntryAction.EditKarte(it)) },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = state.noteText,
-                onValueChange = { vm.dispatch(EntryAction.EditNote(it)) },
-                label = { Text("Ghi chú (optional)") },
-                modifier = Modifier.fillMaxWidth()
+                keyColor = MaterialTheme.colorScheme.primary
             )
         }
 
@@ -152,11 +143,12 @@ fun EntryScreen(vm: EntryViewModel) {
             )
         }
 
+        // Hóa đơn – cam
         MoneyKeypadInput(
             label = "Số tiền mua",
             text = state.expenseAmountText,
             onTextChange = { vm.dispatch(EntryAction.EditExpenseAmount(it)) },
-            modifier = Modifier.fillMaxWidth()
+            keyColor = MaterialTheme.colorScheme.tertiary
         )
 
         Button(
@@ -176,7 +168,10 @@ fun EntryScreen(vm: EntryViewModel) {
                     Text("Danh sách hóa đơn", style = MaterialTheme.typography.titleSmall)
 
                     state.expenseItems.forEach { item ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             Column(Modifier.weight(1f)) {
                                 Text(item.vendorName, style = MaterialTheme.typography.bodyMedium)
                                 Text(
@@ -201,7 +196,7 @@ fun EntryScreen(vm: EntryViewModel) {
             ) {
                 Text("Tổng doanh thu: ${MoneyFormatter.centsToDeEuro(state.totalRevenueCents)}")
                 Text("Tổng chi tiêu: ${MoneyFormatter.centsToDeEuro(state.totalExpenseCents)}")
-                Text("Net: ${MoneyFormatter.centsToDeEuro(state.netCents)}")
+                Text("Lợi nhuận: ${MoneyFormatter.centsToDeEuro(state.netCents)}")
             }
         }
 

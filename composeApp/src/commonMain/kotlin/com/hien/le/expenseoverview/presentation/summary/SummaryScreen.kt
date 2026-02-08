@@ -21,6 +21,13 @@ fun SummaryScreen(vm: SummaryViewModel) {
             state.receipts.groupBy { it.dateIso }
         }
 
+    // ✅ Totals for footer row
+    val totalBargeld = remember(state.rows) { state.rows.sumOf { it.bargeldCents } }
+    val totalKarte = remember(state.rows) { state.rows.sumOf { it.karteCents } }
+    val totalExpense = remember(state.rows) { state.rows.sumOf { it.expenseCents } }
+    val totalNet = remember(state.rows) { state.rows.sumOf { it.netCents } }
+    val totalConLai = remember(state.rows) { state.rows.sumOf { (it.bargeldCents - it.expenseCents) } }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -50,7 +57,7 @@ fun SummaryScreen(vm: SummaryViewModel) {
                 onClick = { vm.dispatch(SummaryAction.ExportMonthPdf) },
                 enabled = state.mode == SummaryMode.MONTH && !state.isExporting
             ) {
-                Text(if (state.isExporting) "Đang export..." else "Export PDF")
+                Text(if (state.isExporting) "Đang xuất..." else "Xuất tổng kết")
             }
 
             Spacer(Modifier.weight(1f))
@@ -79,20 +86,22 @@ fun SummaryScreen(vm: SummaryViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Ngày", modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.labelLarge)
-                Text("Bargeld", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
-                Text("Karte", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+                Text("Tiền mặt", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+                Text("Thẻ", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
                 Text("Hóa đơn", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
-                Text("Net", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+                Text("Còn lại", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+                Text("Lợi nhuận", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
             }
         }
 
-        // ✅ LIST
+        // ✅ LIST + TOTAL ROW at bottom
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(state.rows, key = { it.dateIso }) { r ->
                 val receipts = receiptsByDate[r.dateIso].orEmpty()
+                val conLaiCents = r.bargeldCents - r.expenseCents
 
                 Card {
                     Column(
@@ -124,6 +133,10 @@ fun SummaryScreen(vm: SummaryViewModel) {
                                 modifier = Modifier.weight(1f)
                             )
                             Text(
+                                MoneyFormatter.centsToDeEuro(conLaiCents),
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
                                 MoneyFormatter.centsToDeEuro(r.netCents),
                                 modifier = Modifier.weight(1f)
                             )
@@ -149,6 +162,49 @@ fun SummaryScreen(vm: SummaryViewModel) {
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // ✅ TOTAL footer row
+            item(key = "TOTAL_ROW") {
+                Card {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 10.dp, horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Tổng",
+                            modifier = Modifier.weight(1.2f),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            MoneyFormatter.centsToDeEuro(totalBargeld),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            MoneyFormatter.centsToDeEuro(totalKarte),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            MoneyFormatter.centsToDeEuro(totalExpense),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            MoneyFormatter.centsToDeEuro(totalConLai),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            MoneyFormatter.centsToDeEuro(totalNet),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium
+                        )
                     }
                 }
             }
