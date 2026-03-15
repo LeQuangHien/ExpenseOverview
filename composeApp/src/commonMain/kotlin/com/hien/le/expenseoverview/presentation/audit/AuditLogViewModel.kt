@@ -11,6 +11,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.Clock
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Instant
 
 class AuditLogViewModel(
     private val repo: AuditRepository,
@@ -31,9 +36,32 @@ class AuditLogViewModel(
 
             runCatching {
                 val now = Clock.System.now().toEpochMilliseconds()
-                val from = now - 30L * 24L * 60L * 60L * 1000L // 30 ngày gần nhất
+                val tz = TimeZone.currentSystemDefault()
+
+                val nowDate = Instant
+                    .fromEpochMilliseconds(now)
+                    .toLocalDateTime(tz)
+                    .date
+
+                // ✅ Giữ: năm hiện tại + năm liền trước
+                // Ví dụ:
+                // 01.01.2027 -> cutoff = 01.01.2026 -> xóa hết 2025
+                // 01.01.2028 -> cutoff = 01.01.2027 -> xóa hết 2026
+                val keepFromDate = LocalDate(year = nowDate.year - 1,
+                    month = 1,
+                    day = 1
+                )
+
+                val keepFromEpochMs = keepFromDate
+                    .atStartOfDayIn(tz)
+                    .toEpochMilliseconds()
+
                 withContext(dispatchers.io) {
-                    repo.listInRange(from, now)
+                    // ✅ Xóa hết log cũ hơn mốc giữ lại
+                    repo.purgeOlderThan(keepFromEpochMs)
+
+                    // ✅ Hiển thị log từ đầu năm trước đến hiện tại
+                    repo.listInRange(keepFromEpochMs, now)
                 }
             }.onSuccess { list ->
                 _state.update {
